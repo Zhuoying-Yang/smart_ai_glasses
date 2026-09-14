@@ -12,7 +12,7 @@ import numpy as np
 import torch
 
 from .config import QuerySpec, WhenConfig
-from .vocab import load_vocab
+from .vocab import CATEGORY, load_vocab
 from .encoder import SiglipEncoder
 from .types import (
     Evidence,
@@ -172,12 +172,15 @@ class VisualGate:
         # 排除与任一 query 近乎重复的词条，否则等于把自己的 query 也否掉
         order = np.argsort(-sims)
         if self._q_emb is None:
-            picked = [int(j) for j in order[: a.top_k]]
+            allowed = [int(j) for j in order]
         else:
             qsim = (self._vocab_emb @ self._q_emb.T).cpu().numpy().max(axis=1)
-            picked = [int(j) for j in order if qsim[j] < a.exclude_similar][: a.top_k]
-        if not picked:
-            picked = [int(j) for j in order[: a.top_k]]
+            allowed = [int(j) for j in order if qsim[j] < a.exclude_similar]
+        if not allowed:
+            allowed = [int(j) for j in order]
+        picked = self._select_diverse(
+            allowed, sims, a.top_k, a.diversity, a.max_per_category
+        )
 
         self.picked_negatives = [self._vocab[j] for j in picked]
         self._neg_emb = self._vocab_emb[picked].clone()
@@ -187,6 +190,68 @@ class VisualGate:
 
         if self.on_probe_done:
             self.on_probe_done(self)
+
+    def _select_diverse(self, allowed, sims, k, diversity, max_per_category):
+        """挑 K 条既贴合画面、又互相不重复的负样本。
+
+        两道约束叠加：
+        · 类别限额 —— 每类最多几条。主力，防止 4 条都是「桌面电脑周边」。
+        · MMR —— 在此之上再压一压彼此相似的。作用有限（句子嵌入相似度方差太小），
+          所以权重给得低。
+        """
+        pool = list(allowed[: max(k * 8, 40)])          # 候选池，不必扫全表
+        if len(pool) <= k:
+            return pool[:k]
+
+        used = {}
+
+        def category_ok(j):
+            if not max_per_category:
+                return True
+            cat = CATEGORY.get(self._vocab[j], "other")
+            return used.get(cat, 0) < max_per_category
+
+        def take(j):
+            used[CATEGORY.get(self._vocab[j], "other")] = (
+                used.get(CATEGORY.get(self._vocab[j], "other"), 0) + 1
+            )
+
+        if diversity <= 0:
+            out = []
+            for j in pool:
+                if category_ok(j):
+                    out.append(j)
+                    take(j)
+                    if len(out) == k:
+                        break
+            return out or pool[:k]
+
+        # 两项量纲差很远（图-文 ~0.03-0.09，文-文 ~0.6-0.9），先把分数归一化
+        vals = sims[pool]
+        lo, hi = float(vals.min()), float(vals.max())
+        norm = {j: (float(sims[j]) - lo) / (hi - lo + 1e-9) for j in pool}
+        tsim = (self._vocab_emb[pool] @ self._vocab_emb[pool].T).cpu().numpy()
+        idx = {j: i for i, j in enumerate(pool)}
+
+        picked = [pool[0]]
+        take(pool[0])
+        while len(picked) < k and len(picked) < len(pool):
+            best, best_j = None, None
+            for relax in (False, True):          # 限额用尽时放开，宁可重复也要凑够 K 条
+                for j in pool:
+                    if j in picked or (not relax and not category_ok(j)):
+                        continue
+                    redundancy = max(tsim[idx[j], idx[q]] for q in picked)
+                    score = norm[j] - diversity * redundancy
+                    if best is None or score > best:
+                        best, best_j = score, j
+                if best_j is not None:
+                    break
+            if best_j is None:
+                break
+            picked.append(best_j)
+            take(best_j)
+        return picked
 
     def _calibrate(self, indices) -> None:
         """用探测帧给指定的几条 query 各自标阈值。
@@ -207,15 +272,13 @@ class VisualGate:
             col = scores[:, i]
             mu, sd = float(col.mean()), float(col.std()) + 1e-6
             st = self._state[self.queries[i].id]
+            statistical = mu + a.sigma_min_raw * sd     # 高过静止期的抖动
+            # 随机水平是个好锚点，但它是固定的，而分数量纲随负样本贴合度变化很大。
+            # 够不到就别用，否则会立成一道谁都翻不过的墙。
+            chance_term = min(chance * a.chance_multiplier,
+                              statistical * a.chance_headroom)
             st.min_raw = float(
-                min(
-                    max(
-                        mu + a.sigma_min_raw * sd,      # 高过静止期的抖动
-                        chance * a.chance_multiplier,   # 也要高过随机水平
-                        a.min_raw_floor,
-                    ),
-                    a.min_raw_cap,
-                )
+                min(max(statistical, chance_term, a.min_raw_floor), a.min_raw_cap)
             )
             st.delta_on = max(
                 a.sigma_delta_on * sd,

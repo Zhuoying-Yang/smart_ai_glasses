@@ -76,6 +76,9 @@ negatives:
     # 静止探测期的 σ 只反映「没事发生时的抖动」，不足以区分「对的物体」和「错的物体」。
     # 再加一个锚点：softmax 有 K 条负样本时随机水平 = 1/(1+K)，低于它说明没匹配上。
     chance_multiplier: 1.2    # min_raw 至少 1.2 × 随机水平。乱触发就调大
+    # 随机水平是固定值，而各场景分数量纲差一个数量级（负样本越贴合，query 分数被压得越低）。
+    # 给它加个天花板：不能超过「探测期统计量 × headroom」，否则会成为够不到的死门槛
+    chance_headroom: 3.0
     delta_ratio: 0.20         # delta_on 至少 min_raw 的 20%
     delta_on_floor: 0.004
     min_raw_floor: 0.02
