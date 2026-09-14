@@ -386,6 +386,7 @@ standing:
 
 | 现象 | 怎么办 |
 |---|---|
+| `ModuleNotFoundError: No module named 'torch'` | 用错解释器了。提示符里若同时有 `(aria_env)`，先 `deactivate`。**本项目从不需要激活 `aria_env`**——Aria 相关命令都用绝对路径 `~/aria_env/bin/...` |
 | 说话没反应 | `python -m when.run_live --mic-test`，看条形有没有冲过阈值线 |
 | 摄像头打不开 | macOS：系统设置 → 隐私与安全性 → 摄像头，勾上终端/VSCode，**然后完全退出该程序再重开** |
 | 识别出 `Thank you for watching` 之类 | Whisper 在静音上的幻觉，已有黑名单过滤。频繁出现说明 VAD 阈值太低 |

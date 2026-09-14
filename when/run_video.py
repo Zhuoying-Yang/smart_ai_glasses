@@ -13,12 +13,39 @@ import threading
 import time
 from pathlib import Path
 
-import cv2
+import os as _os
 
-from .config import DEFAULT_CONFIG, load_config
-from .console import ConsoleSink
-from .encoder import SiglipEncoder
-from .gate import VisualGate
+try:
+    import cv2
+except ImportError:
+    raise SystemExit("missing opencv-python")
+
+try:
+    from .config import DEFAULT_CONFIG, load_config
+    from .console import ConsoleSink
+    from .encoder import SiglipEncoder
+    from .gate import VisualGate
+except ModuleNotFoundError as exc:
+    _MISSING = exc.name
+else:
+    _MISSING = None
+
+
+
+
+def _wrong_env(missing: str) -> "NoReturn":
+    import sys as _s
+    in_venv = _s.prefix != _s.base_prefix
+    hint = ("  你在一个 venv 里：" + _s.prefix + "\n"
+            "  先退出它：deactivate\n"
+            if in_venv else
+            "  先激活项目环境：conda activate eyewhen\n")
+    _s.exit(
+        f"\n✗ 缺少 {missing}，说明用错了 Python 解释器。\n"
+        f"  当前：{_s.executable}\n"
+        f"{hint}"
+        f"  注意：拉起 Aria 桥接不需要激活 aria_env，本程序会用绝对路径调它。\n"
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -76,6 +103,8 @@ def _on_probe_done(gate) -> None:
 
 
 def main(argv=None) -> int:
+    if _MISSING:
+        _wrong_env(_MISSING)
     args = build_parser().parse_args(argv)
     video = Path(args.video)
     if not video.exists():
