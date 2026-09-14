@@ -1,0 +1,13 @@
+# Large WearVQA data
+routing/benchmarks/wearvqa_raw/
+routing/benchmarks/wearvqa_mini/images/
+*.tar
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# macOS
+.DS_Store
