@@ -426,4 +426,6 @@ ASR 耗时几乎与说话长短无关——Whisper 内部把任何输入补齐�
 
 ## 9. 相关文档
 
+- [ARCHITECTURE.md](ARCHITECTURE.md) — 架构图（4 张 Mermaid）与 WHEN→WHICH 的契约
+- [CHANGELOG.md](CHANGELOG.md) — 更新日志与 TODO
 - [GIT_WORKFLOW.md](GIT_WORKFLOW.md) — 版本管理流程与回滚方法
