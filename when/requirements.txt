@@ -1,10 +1,19 @@
+# --- Core: needed for video analysis (run_video) ---
 torch>=2.4
-torchvision
-transformers>=4.45
+torchvision              # transformers imports it even though we never call it
+transformers>=4.45       # v5 API is handled too (encoder._as_tensor)
+sentencepiece            # SigLIP tokenizer
+protobuf
 pillow
 numpy
 opencv-python
 pyyaml
-# 阶段 2（摄像头 + 语音）才需要：
-sounddevice
-mlx-whisper ; sys_platform == "darwin"
+
+# --- Audio: needed for live mode (run_live) only ---
+sounddevice                                  # microphone capture (PortAudio)
+mlx-whisper ; sys_platform == "darwin"       # Apple Silicon ASR, supports translate
+# faster-whisper                             # fallback on non-Apple hardware
+
+# Verified on macOS 26.6 / Apple M4 / Python 3.11.16 with:
+#   torch 2.14.0  torchvision 0.29.0  transformers 5.17.0  numpy 2.4.6
+#   opencv-python 5.0.0.93  mlx-whisper 0.4.3  sounddevice 0.5.6
