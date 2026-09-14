@@ -121,9 +121,13 @@ python -m when.run_live [参数]
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
+| `--source {mac,aria}` | 询问 | `mac`=电脑摄像头，`aria`=眼镜。**都不给且在终端里跑时会让你选 1 或 2**，选眼镜会自动拉起桥接 |
 | `--no-preset` | 关 | 不加载配置里的 standing/alerts，**开机零 query，只监测你口头注册的**。笔记本摄像头对着自己时建议开 |
 | `--negatives {off,manual,auto}` | 读配置 | 新环境建议 `auto`，开头 4 秒自动探测环境 |
-| `--camera N` | `0` | 摄像头编号 |
+| `--camera N` | 见 `--source` | 摄像头编号或 MJPEG/RTSP 地址。给了它就不再询问来源 |
+| `--aria-python` | `~/aria_env/bin/python` | 装了 Aria SDK 的解释器 |
+| `--aria-port N` | `8080` | 桥接端口。端口已被占用时直接复用，不会起第二个 |
+| `--aria-size N` | `640` | 桥接下采样到的边长 |
 | `--mic N` | 系统默认 | 麦克风编号，用 `--list-devices` 查 |
 | `--no-audio` | 关 | 只跑视觉，不开麦克风 |
 | `--no-display` | 关 | 不开预览窗口 |
@@ -209,7 +213,30 @@ aria device status
 `aria auth pair` 时眼镜上会弹确认，需要在眼镜上点一下。
 **命令后面不要跟注释**——交互式 zsh 默认不把 `#` 当注释，会把注释当参数传进去。
 
-### 跑起来（两个终端）
+### 跑起来
+
+**方式一（推荐）：一条命令，`run_live` 自动拉起桥接**
+
+```bash
+python -m when.run_live --no-preset --negatives auto
+```
+
+不带 `--source` 时会先问你：
+
+```
+画面来源：
+  1) 电脑摄像头
+  2) 眼镜摄像头（Project Aria）
+选择 [1/2]:
+```
+
+选 2 就会自动启动桥接（约 15 秒）、连上、退出时自动收尾。想跳过询问就直接
+`--source aria` 或 `--source mac`。
+
+**方式二：两个终端，桥接自己管**
+
+适合桥接要长时间开着、反复重启 `run_live` 的场景。已经有桥接在跑时，
+方式一会直接复用它，不会起第二个——眼镜同一时间只允许一个流式会话。
 
 ```bash
 # 终端 1 —— Aria 环境。必须用 -m，不能按路径运行（见下）
@@ -219,6 +246,16 @@ cd <仓库根目录>
 # 终端 2 —— 本项目环境
 python -m when.run_live --camera http://127.0.0.1:8080/ --no-preset --negatives auto
 ```
+
+### 只想看画面，不做任何分析
+
+```bash
+~/aria_env/bin/python -m when.aria_view
+```
+
+**在终端里按 `q` 退出**（不是在窗口里）。从终端启动的 Python 不是 macOS app
+bundle，它的 OpenCV 窗口拿不到键盘焦点——关闭按钮是灰的，按键会落到终端上。
+所以脚本改成在终端收键。
 
 ### `aria_bridge` 参数
 
@@ -243,7 +280,16 @@ python -m when.run_live --camera http://127.0.0.1:8080/ --no-preset --negatives 
 放进 `sys.path[0]`，于是 `when/types.py` 遮蔽标准库的 `types`，导致标准库深处循环导入崩溃。
 脚本里加了守卫，误用时会直接给出提示。
 
-**3. `~/aria_env` 不要在激活 conda 环境时创建。** venv 会继承创建时那个解释器的标准库。
+**3. 同一时间只能有一个流式会话。** 桥接被强杀（没跑完 `stop_streaming`）后，
+眼镜端会一直以为会话还开着，下次启动报 `(940) Cannot start streaming...`。解法：
+
+```bash
+~/aria_env/bin/aria streaming stop
+```
+
+`run_live` 正常退出时会给桥接发 SIGINT 让它自己收尾，不会留下残留。
+
+**4. `~/aria_env` 不要在激活 conda 环境时创建。** venv 会继承创建时那个解释器的标准库。
 影响不大，但混淆调试。
 
 ### 实测数据

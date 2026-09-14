@@ -9,6 +9,10 @@
 from __future__ import annotations
 
 import argparse
+import os
+import signal
+import socket
+import subprocess
 import sys
 import threading
 import time
@@ -38,8 +42,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--model", help="覆盖配置里的 SigLIP 模型")
     p.add_argument("--negatives", choices=("off", "manual", "auto"),
                    help="覆盖负样本模式。新环境/摄像头对着自己时建议 auto")
-    p.add_argument("--camera", default=0,
-                   help="摄像头编号（默认 0），或 MJPEG/RTSP 地址，如 Aria 桥接的 http://127.0.0.1:8080/")
+    p.add_argument("--source", choices=("mac", "aria"),
+                   help="画面来源：mac=电脑摄像头，aria=眼镜。都不给且在终端里跑时会让你选")
+    p.add_argument("--camera", default=None,
+                   help="摄像头编号，或 MJPEG/RTSP 地址。给了它就不再询问来源")
+    p.add_argument("--aria-python", default="~/aria_env/bin/python",
+                   help="装了 projectaria_client_sdk 的解释器")
+    p.add_argument("--aria-port", type=int, default=8080, help="Aria 桥接的本地端口")
+    p.add_argument("--aria-size", type=int, default=640, help="Aria 桥接下采样到的边长")
     p.add_argument("--jsonl", help="把完整事件流写到这个文件")
     p.add_argument("--no-display", action="store_true")
     p.add_argument("--no-audio", action="store_true", help="只跑视觉，不开麦克风")
@@ -151,6 +161,85 @@ def _mic_test(device=None, threshold: float = 0.012) -> int:
     return 0
 
 
+def _port_open(port: int, host: str = "127.0.0.1") -> bool:
+    with socket.socket() as sock:
+        sock.settimeout(0.3)
+        return sock.connect_ex((host, port)) == 0
+
+
+def _choose_source() -> str:
+    print("\n画面来源：")
+    print("  1) 电脑摄像头")
+    print("  2) 眼镜摄像头（Project Aria）")
+    while True:
+        try:
+            ans = input("选择 [1/2]: ").strip()
+        except EOFError:
+            return "mac"
+        if ans in ("1", "mac", ""):
+            return "mac"
+        if ans in ("2", "aria"):
+            return "aria"
+        print("  输入 1 或 2")
+
+
+def _start_aria_bridge(args):
+    """把桥接拉起来并等它就绪。返回 (子进程, URL)。
+
+    Aria SDK 的依赖和本项目冲突，只能活在自己的解释器里，所以这里起一个子进程，
+    由它把 RGB 流转成本地 MJPEG。已经有人在跑桥接就直接复用，不再起第二个
+    —— 眼镜同一时间只允许一个流式会话。
+    """
+    url = f"http://127.0.0.1:{args.aria_port}/"
+    if _port_open(args.aria_port):
+        print(f"  ✓ 复用已在运行的 Aria 桥接 {url}")
+        return None, url
+
+    exe = os.path.expanduser(args.aria_python)
+    if not os.path.exists(exe):
+        print(f"\n✗ 找不到 Aria 解释器：{exe}\n"
+              f"  先按 when/README.md 第 4.5 节建好 ~/aria_env，或用 --aria-python 指定\n",
+              file=sys.stderr)
+        return None, None
+
+    print(f"  启动 Aria 桥接（{exe}）...")
+    print("  眼镜端起流约需 15 秒，请稍候", flush=True)
+    proc = subprocess.Popen(
+        [exe, "-m", "when.aria_bridge", "--port", str(args.aria_port),
+         "--size", str(args.aria_size)],
+        cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
+    )
+    for _ in range(600):                     # 最多等 60 秒
+        if proc.poll() is not None:
+            err = (proc.stderr.read() or "").strip().splitlines()
+            tail = "\n  ".join(err[-6:]) if err else "(无输出)"
+            print(f"\n✗ Aria 桥接启动失败：\n  {tail}\n", file=sys.stderr)
+            return None, None
+        if _port_open(args.aria_port):
+            print(f"  ✓ Aria 桥接就绪 {url}")
+            return proc, url
+        time.sleep(0.1)
+    print("\n✗ Aria 桥接 60 秒内没就绪", file=sys.stderr)
+    _stop_aria_bridge(proc)
+    return None, None
+
+
+def _stop_aria_bridge(proc) -> None:
+    """用 SIGINT 收尾，让桥接自己跑完 stop_streaming —— 强杀会在眼镜上留下
+    占着的流式会话，下次启动就报 (940)。"""
+    if proc is None or proc.poll() is not None:
+        return
+    print("  停止 Aria 桥接 ...")
+    proc.send_signal(signal.SIGINT)
+    try:
+        proc.wait(timeout=15)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        print("  ⚠ 桥接没能正常退出。若下次报 (940)，先跑："
+              "  ~/aria_env/bin/aria streaming stop")
+
+
 def _check_camera(cap, tries: int = 40) -> bool:
     """真读几帧再说。macOS 没给权限时 VideoCapture 会「打开成功」但一帧读不到。"""
     for _ in range(tries):
@@ -209,10 +298,22 @@ def main(argv=None) -> int:
         else:
             mic = MicStream(RmsVad(threshold=args.vad_threshold), device=args.mic)
 
-    source = int(args.camera) if str(args.camera).isdigit() else args.camera
-    cap = cv2.VideoCapture(source)
+    aria_proc = None
+    if args.camera is None:
+        source = args.source or (_choose_source() if sys.stdin.isatty() else "mac")
+        if source == "aria":
+            aria_proc, url = _start_aria_bridge(args)
+            if url is None:
+                return 2
+            args.camera = url
+        else:
+            args.camera = 0
+
+    source_arg = int(args.camera) if str(args.camera).isdigit() else args.camera
+    cap = cv2.VideoCapture(source_arg)
     if not cap.isOpened() or not _check_camera(cap):
         cap.release()
+        _stop_aria_bridge(aria_proc)
         print(
             f"\n✗ 摄像头 {args.camera} 打不开，或者打开了但一帧都读不到。\n"
             f"  macOS 上最常见的原因是没授权：\n"
@@ -223,7 +324,7 @@ def main(argv=None) -> int:
             file=sys.stderr,
         )
         return 2
-    print(f"  ✓ 摄像头 {args.camera} 正常出帧")
+    print(f"  ✓ 画面来源 {args.camera} 正常出帧")
 
     jsonl_fp = open(args.jsonl, "w", encoding="utf-8") if args.jsonl else None
     sink = ConsoleSink(jsonl=jsonl_fp)
@@ -371,6 +472,7 @@ def main(argv=None) -> int:
             cv2.destroyAllWindows()
         if jsonl_fp:
             jsonl_fp.close()
+        _stop_aria_bridge(aria_proc)
 
     print(f"\n{'='*60}")
     print(f"结束  {sink.summary()}")
