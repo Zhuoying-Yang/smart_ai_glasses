@@ -1,0 +1,46 @@
+sample_id,category,question,small_failed,predicted_task,text_score,image_score,clip_multimodal_score,hybrid_score
+2242,activity_recognition,Which stove is connected to the rightmost burner knob?,0,spatial_reasoning,0.547069,0.478887,0.451806,0.530019
+243,activity_recognition,Recognize the activity of the second dog on the first row.,0,activity_recognition,0.503446,0.521720,0.553349,0.556800
+1290,activity_recognition,What am I doing?,1,activity_recognition,0.515912,0.424085,0.462522,0.433327
+1025,activity_recognition,What is the knife being used for?,0,how_to_purpose,0.408710,0.486207,0.464644,0.345897
+540,how_to_purpose,What is the purpose of the lights on the tree to my right?,0,how_to_purpose,0.438910,0.466221,0.413223,0.344506
+1532,how_to_purpose,What can I do with the round object?,0,image_general_reasoning,0.464883,0.522830,0.502262,0.450793
+1203,how_to_purpose,What is the purpose of the two black rectangular pieces of wood with windows?,0,how_to_purpose,0.341331,0.516944,0.491679,0.318431
+1873,how_to_purpose,What is the purpose of the metal gate between the people and the water?,0,how_to_purpose,0.326410,0.464997,0.426741,0.270214
+1811,image_attribute_simple_recognition,What direction is the tree on the farthest left branching out to?,0,spatial_reasoning,0.379117,0.502807,0.488410,0.390353
+214,image_attribute_simple_recognition,What are the yellow objects to the left of the stove top?,1,image_attribute_simple_recognition,0.358398,0.484282,0.421910,0.311755
+2214,image_attribute_simple_recognition,What color is the ball in front of me?,0,image_attribute_simple_recognition,0.526347,0.545152,0.549787,0.553696
+531,image_attribute_simple_recognition,What kind of pastry is the one with chocolate frosting closer to the front?,0,activity_recognition,0.362398,0.528637,0.538594,0.415433
+2088,image_general_reasoning,What is the common theme of these Christmas ornaments?,0,image_attribute_simple_recognition,0.467951,0.463587,0.424194,0.428935
+175,image_general_reasoning,What is the white object with a cable connected to an outlet?,0,spatial_reasoning,0.403978,0.523300,0.470729,0.404165
+781,image_general_reasoning,Why are those in the bowl on the left?,0,image_general_reasoning,0.456039,0.506377,0.498993,0.441913
+1344,image_general_reasoning,What color is the unlit candle being held by someone?,0,image_attribute_simple_recognition,0.377534,0.473944,0.469072,0.371355
+594,image_general_reasoning,What is the make of this car?,1,text_general_reasoning,0.437959,0.531958,0.527437,0.474372
+295,math,What is my speed in km/hr now?,1,image_attribute_simple_recognition,0.517679,0.586462,0.608088,0.574717
+648,math,What is the sum of the three numbers on the card?,1,math,0.437589,0.497043,0.487963,0.479650
+90,math,"If the temperature outside yesterday was 90 degrees Fahrenheit, what is the temperature difference today?",1,math,0.440726,0.564425,0.597797,0.553977
+1629,math,"If I have two plain Sundaes, how much calories will I be having?",1,math,0.487103,0.531277,0.551867,0.559045
+2163,math,What is the exponent to the three sig figs if I use the first digit as the base to log the second digit for the number here?,1,math,0.471308,0.464887,0.434731,0.471630
+2438,next_state_prediction,What will I do in about 9 minutes?,1,next_state_prediction,0.494299,0.478810,0.522988,0.505817
+627,next_state_prediction,What will the person on the bike do next?,0,next_state_prediction,0.414677,0.543793,0.572563,0.515692
+2268,next_state_prediction,What am I about to do?,1,next_state_prediction,0.598381,0.483363,0.514404,0.613261
+508,next_state_prediction,What path should I take to reach the building ahead?,0,spatial_reasoning,0.460625,0.493907,0.500164,0.464945
+1853,next_state_prediction,What will happen if I do not water the red plant anymore?,0,next_state_prediction,0.581802,0.457403,0.491808,0.588819
+1495,object_counting,How many green armchairs can you see?,1,object_counting,0.610420,0.471368,0.453089,0.589211
+1089,object_counting,How many red cars can you see here?,1,object_counting,0.719959,0.479003,0.499296,0.724855
+785,object_counting,How many light brown flower pots can you see?,1,object_counting,0.715327,0.447706,0.452204,0.691557
+1375,object_counting,How many lampposts are there?,0,object_counting,0.660122,0.472857,0.531963,0.715278
+833,object_counting,How many green cups are on the table?,0,object_counting,0.521700,0.495084,0.530692,0.592614
+2471,spatial_reasoning,Where is the white owl relative to the vase of flowers?,1,spatial_reasoning,0.416413,0.461181,0.443095,0.355609
+1468,spatial_reasoning,How much does the Mega Slinky cost?,0,math,0.505142,0.511812,0.523988,0.599464
+1404,spatial_reasoning,Which side of the road are the lampposts on?,1,spatial_reasoning,0.316132,0.442073,0.431363,0.266734
+1761,text_general_reasoning,How many hit points does the very top face-up Pokemon card have?,1,object_counting,0.498589,0.497195,0.532455,0.543468
+826,text_general_reasoning,"If I wanted to get my golf clubs fitted, what shop in front of me do I go to?",1,next_state_prediction,0.484296,0.575605,0.603108,0.568281
+1541,text_general_reasoning,What are the directions on this pack for?,0,how_to_purpose,0.433338,0.533541,0.511663,0.406163
+1335,text_general_reasoning,What is the name on the crates with bananas on it?,0,text_simple_recognition,0.373502,0.494065,0.474535,0.371350
+1640,text_general_reasoning,What does it say behind the performer?,0,text_simple_recognition,0.416150,0.511374,0.504945,0.423942
+342,text_simple_recognition,How many words in total can you see here?,1,object_counting,0.736977,0.437098,0.486569,0.724123
+592,text_simple_recognition,What word is written on the second line of the white sign hanging on the middle Christmas tree?,0,text_simple_recognition,0.406968,0.472716,0.414828,0.359409
+1540,text_simple_recognition,What is the name of the second player on the right screen?,1,text_simple_recognition,0.410209,0.511914,0.488253,0.399640
+633,text_simple_recognition,What is the name of the restaurant in the back right?,1,text_simple_recognition,0.486811,0.496517,0.485243,0.457117
+1589,text_simple_recognition,What is the large bold vertical text on the green banner?,0,text_simple_recognition,0.359936,0.469278,0.453946,0.344207
