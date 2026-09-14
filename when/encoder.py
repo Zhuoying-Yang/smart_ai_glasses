@@ -17,6 +17,20 @@ from transformers import AutoModel, AutoProcessor
 from .config import ModelCfg
 
 
+def _from_cache_first(loader, name: str, **kwargs):
+    """先用本地缓存，没有才联网下载。
+
+    from_pretrained 默认每次都发 HEAD 请求查更新，即使模型已经缓存。
+    网络不通或被丢包时它会一直挂在 socket.connect 上，表现为「加载 SigLIP …」
+    之后无限卡住 —— 而本地其实什么都不缺。
+    """
+    try:
+        return loader.from_pretrained(name, local_files_only=True, **kwargs)
+    except Exception:
+        print(f"  本地缓存没有 {name}，联网下载中 ...", flush=True)
+        return loader.from_pretrained(name, **kwargs)
+
+
 def _as_tensor(out) -> torch.Tensor:
     """transformers 5 的 get_*_features 返回 output 对象，4.x 返回张量。两种都吃。"""
     if isinstance(out, torch.Tensor):
@@ -45,9 +59,9 @@ class SiglipEncoder:
         self.dtype = torch.float32 if self.device == "cpu" else getattr(torch, cfg.dtype)
 
         t0 = time.perf_counter()
-        self.processor = AutoProcessor.from_pretrained(cfg.siglip)
+        self.processor = _from_cache_first(AutoProcessor, cfg.siglip)
         self.model = (
-            AutoModel.from_pretrained(cfg.siglip, dtype=self.dtype)
+            _from_cache_first(AutoModel, cfg.siglip, dtype=self.dtype)
             .to(self.device)
             .eval()
         )

@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import os
 import queue
 import re
 import threading
@@ -304,6 +305,22 @@ class RmsVad:
         return Utterance(self._t_start, self._t_start + dur, audio, mean_rms)
 
 
+def _resolve_hf_repo(repo: str) -> str:
+    """把 HF 仓库名解析成本地快照路径，解析不出来就原样返回。
+
+    mlx_whisper 每次转写都调 snapshot_download，即使模型已缓存也要联网查一遍；
+    网络不通时会挂在 socket.connect 上。先离线解析成本地路径就绕开了。
+    """
+    if os.path.isdir(repo):
+        return repo
+    try:
+        from huggingface_hub import snapshot_download
+
+        return snapshot_download(repo_id=repo, local_files_only=True)
+    except Exception:
+        return repo          # 没缓存，交给它自己去下载
+
+
 class Transcriber:
     """优先 mlx-whisper（Apple 原生 Metal），装不上自动退到 faster-whisper。
 
@@ -328,9 +345,11 @@ class Transcriber:
         try:
             import mlx_whisper  # noqa
 
+            resolved = _resolve_hf_repo(model)
+
             def _mlx(audio: np.ndarray, task: str) -> str:
                 out = mlx_whisper.transcribe(
-                    audio, path_or_hf_repo=model, language=self.language, task=task
+                    audio, path_or_hf_repo=resolved, language=self.language, task=task
                 )
                 return (out.get("text") or "").strip()
 
