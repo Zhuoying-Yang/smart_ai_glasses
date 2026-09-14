@@ -71,6 +71,14 @@ class WhichExecutor:
 
         question = event.query.text
 
+        # Keep the original question for WHICH classification,
+        # but ask the local VLM to answer briefly.
+        phone_prompt = (
+            f"{question}\n"
+            "Answer directly in one concise sentence. "
+            "Do not provide a list or additional explanation."
+        )
+
         print("Question:", question)
         print("Sending current Aria frame to Galaxy...")
 
@@ -78,7 +86,7 @@ class WhichExecutor:
 
         result = ask_phone(
             str(FRAME_PATH),
-            question,
+            phone_prompt,
             timeout=30,
         )
 
