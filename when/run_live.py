@@ -38,7 +38,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--model", help="覆盖配置里的 SigLIP 模型")
     p.add_argument("--negatives", choices=("off", "manual", "auto"),
                    help="覆盖负样本模式。新环境/摄像头对着自己时建议 auto")
-    p.add_argument("--camera", type=int, default=0, help="摄像头编号（默认 0）")
+    p.add_argument("--camera", default=0,
+                   help="摄像头编号（默认 0），或 MJPEG/RTSP 地址，如 Aria 桥接的 http://127.0.0.1:8080/")
     p.add_argument("--jsonl", help="把完整事件流写到这个文件")
     p.add_argument("--no-display", action="store_true")
     p.add_argument("--no-audio", action="store_true", help="只跑视觉，不开麦克风")
@@ -208,7 +209,8 @@ def main(argv=None) -> int:
         else:
             mic = MicStream(RmsVad(threshold=args.vad_threshold), device=args.mic)
 
-    cap = cv2.VideoCapture(args.camera)
+    source = int(args.camera) if str(args.camera).isdigit() else args.camera
+    cap = cv2.VideoCapture(source)
     if not cap.isOpened() or not _check_camera(cap):
         cap.release()
         print(

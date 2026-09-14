@@ -181,6 +181,81 @@ python -m when.run_live --no-preset --negatives auto --vad-threshold 0.03
 
 ---
 
+## 4.5 用 Project Aria 眼镜当输入
+
+**Aria 不会注册成摄像头。** 它不实现 USB Video Class，系统摄像头列表里看不到它，
+`cv2.VideoCapture(1)` 也找不到——图像只能通过 Aria Client SDK 的流式接口取。
+
+而 SDK 的依赖树跟本项目冲突（会拖进 jupyter / matplotlib / rerun 等 130 多个包，
+还会降级 pillow），所以它必须装在**独立的环境**里。
+
+`when/aria_bridge.py` 就是那座桥：在 Aria 环境里取流，转成本地 MJPEG，
+我们这边用 `cv2.VideoCapture(url)` 原生读取。
+
+### 一次性准备
+
+```bash
+python3 -m venv ~/aria_env
+source ~/aria_env/bin/activate
+python3 -m pip install --upgrade pip
+python3 -m pip install projectaria_client_sdk --no-cache-dir
+python3 -m pip install opencv-python
+
+aria auth pair
+aria auth check
+aria device status
+```
+
+`aria auth pair` 时眼镜上会弹确认，需要在眼镜上点一下。
+**命令后面不要跟注释**——交互式 zsh 默认不把 `#` 当注释，会把注释当参数传进去。
+
+### 跑起来（两个终端）
+
+```bash
+# 终端 1 —— Aria 环境。必须用 -m，不能按路径运行（见下）
+cd <仓库根目录>
+~/aria_env/bin/python -m when.aria_bridge
+
+# 终端 2 —— 本项目环境
+python -m when.run_live --camera http://127.0.0.1:8080/ --no-preset --negatives auto
+```
+
+### `aria_bridge` 参数
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `--port N` | `8080` | MJPEG 服务端口 |
+| `--host` | `127.0.0.1` | 默认只监听本机，不暴露到网络 |
+| `--profile` | `profile12` | `profile12` = RGB 10fps 2MP 无音频；`profile18` 带空间音频 |
+| `--interface {usb,wifi}` | `usb` | USB 延迟更低更稳 |
+| `--size N` | `640` | 把 1408×1408 缩到这个尺寸再编码；`0` 保持原尺寸 |
+| `--quality N` | `80` | JPEG 质量 |
+| `--no-rotate` | 关 | 跳过 90° 旋转校正 |
+| `--serial` | 自动 | 接了多台设备时指定序列号 |
+
+### 三个必须知道的坑
+
+**1. 原始帧是躺倒的。** Aria 的 RGB 传感器是旋转安装的，直接取到的帧转了 90°。
+桥接默认做 `np.rot90(frame, -1)` 校正——这是拿已知正立的物体实测出来的，不是猜的。
+不校正的话画面是横的，SigLIP 什么都匹配不上。
+
+**2. 必须用 `-m` 启动桥接。** 按路径运行（`python when/aria_bridge.py`）会把 `when/`
+放进 `sys.path[0]`，于是 `when/types.py` 遮蔽标准库的 `types`，导致标准库深处循环导入崩溃。
+脚本里加了守卫，误用时会直接给出提示。
+
+**3. `~/aria_env` 不要在激活 conda 环境时创建。** venv 会继承创建时那个解释器的标准库。
+影响不大，但混淆调试。
+
+### 实测数据
+
+| 项 | 数值 |
+|---|---|
+| 原始流 | 1408×1408 RGB，9.9 fps（profile12）|
+| 经桥接（`--size 640`）| 640×640，10.5 fps |
+| 门实际消耗 | 2 fps（其余帧直接丢弃）|
+
+---
+
 ## 5. 配置：`when/queries.yaml`
 
 所有行为都在这里改，不用动代码。
