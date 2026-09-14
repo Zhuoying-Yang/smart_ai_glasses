@@ -201,7 +201,7 @@ class RmsVad:
         hangover_s: float = 0.7,
         max_utt_s: float = 12.0,
         onset_blocks: int = 2,          # 连续几块都够响才算起音，滤掉瞬时噪声
-        snr_ratio: float = 1.6,         # 整句平均能量要比环境底噪高这么多倍
+        snr_ratio: float = 1.3,         # 整句平均能量要比环境底噪高这么多倍
         calibrate_s: float = 1.5,       # 开头多久用来量环境底噪
     ):
         self.threshold = threshold
@@ -243,7 +243,7 @@ class RmsVad:
                 self.noise_floor = floor
                 # 宁可松一点让噪声偶尔进来（后面有幻觉黑名单兜底），
                 # 也不要严到把人说的话挡在外面 —— 挡掉了用户是完全无感的
-                self.threshold = max(self.threshold, floor * 2.0)
+                self.threshold = max(self.threshold, floor * 1.5)
             return None
 
         voiced = rms > self.threshold

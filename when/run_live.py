@@ -40,6 +40,7 @@ try:
     from .gate import VisualGate, emit_instant
     from .run_video import _Slot
     from .types import TriggerType, Urgency
+    from integration.pipeline import RoutingPipeline
 except ModuleNotFoundError as exc:
     _MISSING = exc.name
 else:
@@ -357,8 +358,16 @@ def main(argv=None) -> int:
 
     jsonl_fp = open(args.jsonl, "w", encoding="utf-8") if args.jsonl else None
     sink = ConsoleSink(jsonl=jsonl_fp)
+
+    # WHEN -> WHICH -> model execution
+    routing_pipeline = RoutingPipeline()
+
     slot = _Slot()
     lock = threading.Lock()
+
+    # Latest Aria RGB frame for audio-triggered INSTANT queries.
+    latest_frame = {"rgb": None}
+    latest_frame_lock = threading.Lock()
 
     def vision_worker() -> None:
         interval = 1.0 / cfg.gate.fps
@@ -374,7 +383,17 @@ def main(argv=None) -> int:
             next_at = t + interval
             with lock:
                 events = gate.step(frame, t)
+
             sink.emit(events)
+
+            # STANDING / ALERT:
+            # this frame is exactly the frame that produced the trigger.
+            for event in events:
+                if event.is_trigger():
+                    routing_pipeline.submit(
+                        event,
+                        frame,
+                    )
 
     def audio_worker() -> None:
         n_new = 0
@@ -445,7 +464,26 @@ def main(argv=None) -> int:
             else:
                 with lock:
                     seq = gate.next_seq()
-                sink.emit([emit_instant(seq, utt.t_start, english or native, audio_rms=utt.rms)])
+                event = emit_instant(
+                    seq,
+                    utt.t_start,
+                    english or native,
+                    audio_rms=utt.rms,
+                )
+
+                sink.emit([event])
+
+                with latest_frame_lock:
+                    current_frame = (
+                        None
+                        if latest_frame["rgb"] is None
+                        else latest_frame["rgb"].copy()
+                    )
+
+                routing_pipeline.submit(
+                    event,
+                    current_frame,
+                )
 
     threads = [threading.Thread(target=vision_worker, daemon=True)]
     if mic is not None:
@@ -481,7 +519,19 @@ def main(argv=None) -> int:
                 time.sleep(0.01)
                 continue
             t = time.perf_counter() - t0
-            slot.put(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB), t)
+
+            rgb = cv2.cvtColor(
+                bgr,
+                cv2.COLOR_BGR2RGB,
+            )
+
+            with latest_frame_lock:
+                latest_frame["rgb"] = rgb.copy()
+
+            slot.put(
+                rgb,
+                t,
+            )
             if not args.no_display:
                 cv2.imshow("WHEN live — 按 q 退出", bgr)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
