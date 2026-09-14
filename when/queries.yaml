@@ -1,0 +1,106 @@
+# WHEN 层的全部配置。改这里，不改代码。
+
+model:
+  # base-224 轻快（单帧 ~40ms）；想要更准换 google/siglip-so400m-patch14-384（慢 4-6 倍）
+  # 中文 query 需要多语言版：google/siglip-base-patch16-256-multilingual
+  siglip: google/siglip-base-patch16-224
+  device: auto # auto | mps | cpu
+  dtype: float16
+
+gate:
+  fps: 2.0 # 视觉门采样率，跟 EyeWO 那次实验保持一致
+  softmax_scale: 30.0 # zero-shot 打分的 softmax 温度
+  cooldown_s: 20.0       # 同一个 query 的静默期（秒）。always-on 不该每 5 秒 ping 一次
+  emit_silent: true # SILENT 也输出（心跳 + 连续分数留档）
+
+  # relative = 判断「事件刚发生」：分数相对该 query 自身基线抬升了多少
+  # absolute = 判断「画面里有这东西」：分数绝对值够不够高
+  mode: relative
+
+  ema_alpha: 0.35 # 快 EMA：当前状态
+  baseline_alpha: 0.03 # 慢 EMA：长期基线（已用 bias correction，开头即准，不需要爬 16 秒）
+  warmup_s: 1.5 # 基线稳定前不触发
+
+  delta_on: 0.10 # ← softmax 模式真正生效的阈值（触发行里的 thr）
+  delta_off: 0.04
+  tau_on: 0.55 # absolute 模式才用得到
+  tau_off: 0.40
+
+  # 绝对下限：lift 回答「变了没」，min_raw 回答「东西真的在画面里没」，两个都要满足。
+  # 0.55 是在 IMG_6340/6341/6401/6404 上定的：正确触发 raw∈[0.70,0.86]，误触发 raw∈[0.24,0.41]
+  min_raw: 0.55
+
+  # negatives.mode=off 时用纯余弦，数值范围只有 0~0.2，另给一套阈值
+  cos_delta_on: 0.003
+  cos_min_raw: 0.155
+
+# 条件式 ROI 裁剪：默认关闭。
+# 实测（2026-09-14）：靠运动找框不可靠（只拿到网格分数的 40-53%），
+# 网格暴力扫有效但贵 9 倍，且在现有数据上开了反而多误报。
+roi:
+  enabled: false
+  grid: 3
+  frac: 0.5
+  margin: 0.20
+  max_crops: 4
+
+# ── 负样本：判断「什么算正常」的参照物 ───────────────────────────
+#   off    = 不用负样本，纯余弦。零配置，换任何环境直接跑，略糙
+#   manual = 自己写。最准，但换环境要重写
+#   auto   = 开头探测几秒，从词表里自动挑。兼顾两者
+negatives:
+  mode: manual
+
+  manual:
+    - a computer desk with a monitor and keyboard
+    - a person sitting still and doing nothing
+    - an empty room
+    - a blurry out-of-focus frame
+    - a hand typing on a keyboard normally
+
+  auto:
+    probe_seconds: 4.0 # 开头探测多久（2 FPS 下 = 8 帧）
+    top_k: 6 # 挑几条当负样本
+    vocab: builtin # builtin 或自己的词表文件路径
+    exclude_similar: 0.90 # 与 query 近乎重复的词条不选
+    reprobe_on_scene_change: true
+    scene_change_novelty: 0.35
+
+    # 自动负样本会把所有分数整体拉低，固定 min_raw 会立刻失准，
+    # 所以探测期顺便把它一起标定了。
+    # 阈值按探测期分布的尺度定（μ + kσ），不能写死绝对值：
+    # 负样本越贴合环境，query 的概率量纲越小（实测厨房 0.088 vs 书桌 0.73，差一个数量级）
+    calibrate_min_raw: true
+    sigma_min_raw: 3.0        # min_raw = 均值 + 3×标准差
+    sigma_delta_on: 4.0       # delta_on = 4×标准差
+    # 静止探测期的 σ 只反映「没事发生时的抖动」，不足以区分「对的物体」和「错的物体」。
+    # 再加一个锚点：softmax 有 K 条负样本时随机水平 = 1/(1+K)，低于它说明没匹配上。
+    chance_multiplier: 1.2    # min_raw 至少 1.2 × 随机水平。乱触发就调大
+    delta_ratio: 0.20         # delta_on 至少 min_raw 的 20%
+    delta_on_floor: 0.004
+    min_raw_floor: 0.02
+    min_raw_cap: 0.75
+
+# ── STANDING：用户注册的持续监测任务 ──────────────────────────────
+# 写「画面长什么样」，不要写「提醒我…」。口头注册的会自动剥壳成这种形式。
+standing:
+  - id: sq_bottle
+    text: a water bottle placed close to a keyboard and computer
+    urgency: normal
+  # 跨环境共用：书桌和厨房都成立，这是能比较两个环境的唯一办法
+  - id: sq_bottle_any
+    text: a cup or bottle placed on the surface
+    urgency: normal
+
+# ── ALERT：系统预置的预警任务 ────────────────────────────────────
+# 「② 警报型归约成 standing query」就落地在这一段。
+alerts:
+  - id: al_liquid
+    text: an open liquid container about to spill onto electronics
+    urgency: high
+  - id: al_fall
+    text: a person falling down or losing balance
+    urgency: high
+  - id: al_fire
+    text: fire smoke or something burning
+    urgency: high

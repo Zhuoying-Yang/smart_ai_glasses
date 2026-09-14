@@ -1,0 +1,10 @@
+torch>=2.4
+torchvision
+transformers>=4.45
+pillow
+numpy
+opencv-python
+pyyaml
+# 阶段 2（摄像头 + 语音）才需要：
+sounddevice
+mlx-whisper ; sys_platform == "darwin"
