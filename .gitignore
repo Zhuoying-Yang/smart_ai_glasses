@@ -6,3 +6,23 @@ __pycache__/
 
 # Local integration backups
 when/run_live_before_*.py
+
+# Routing benchmark artifacts
+benchmark/results/
+*.npz
+
+# macOS
+.DS_Store
+
+# WearVQA downloaded data
+routing/benchmarks/wearvqa_full/images/
+routing/benchmarks/wearvqa_full/manifest.csv
+
+# Benchmark outputs
+routing/benchmarks/results/*.jsonl
+routing/benchmarks/results/*_raw.csv
+routing/benchmarks/results/*_graded.csv
+benchmark/results/
+
+# macOS
+.DS_Store

@@ -1,0 +1,11 @@
+sample_id,image,question,ground_truth,category,domain,prediction,latency_s,error
+10,routing/benchmarks/wearvqa_full/images/10.jpg,Tell me the net weight in gram for this package.,The net weight of this package is 227g.,text_general_reasoning,text or documents,"I am sorry, but I cannot determine the net weight in grams of the package from the image provided.",5.212592541999584,
+14,routing/benchmarks/wearvqa_full/images/14.jpg,What is on top of the bush?,There is snow on top of the bush.,image_attribute_simple_recognition,gardening or plants,Snow,1.370924833000572,
+7,routing/benchmarks/wearvqa_full/images/7.jpg,How many shopping carts do you see here?,I see three shopping carts.,object_counting,shopping or product,1,1.4049281659999906,
+9,routing/benchmarks/wearvqa_full/images/9.jpg,Summarize the texts seen on this package for me.,"The package contains a set of 4 X-Large Member's Mark Elite Premium Cabretta Leather Golf Gloves. The advertisement highlights the exceptional grip, soft comfortable feel, perforated for breathability, and adjustable closure from the leather material.",text_general_reasoning,text or documents,"The package text includes:
+*   X-LARGE
+*   GOLF GLOVES
+*   PREMIUM CABRETTA LEATHER
+*   Set of 4
+*   Member's Mark",2.3757779170000504,
+42,routing/benchmarks/wearvqa_full/images/42.jpg,"Would this be good for make up, painting, or Chinese calligraphy?",This brush is best for make up given the options provided.,how_to_purpose,shopping or product,"This appears to be a brush, which could be used for makeup, painting, or Chinese calligraphy, depending on the specific type and intended use.",1.8838770000002112,

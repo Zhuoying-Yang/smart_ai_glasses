@@ -2,8 +2,8 @@ from dataclasses import dataclass
 from typing import Optional, List
 
 from .action_space import Action
-from .task_classifier import classify_task
-from .empirical_task_risk import get_task_risk
+from .learned_failure_router import E2BFailureRouter
+from .temporal_router import TemporalRouter
 
 
 @dataclass
@@ -23,9 +23,6 @@ class WhichSignals:
     phone_busy: bool = False
     memory_pressure_high: bool = False
 
-    # Optional future learned LARGE-benefit score.
-    learned_score: Optional[float] = None
-
     # Debug
     force_small: bool = False
     force_large: bool = False
@@ -34,181 +31,292 @@ class WhichSignals:
 @dataclass
 class WhichDecision:
     action: Action
+
+    # calibrated P(E2B failure)
     score: float
+
+    # static / temporal
     task_type: str
+
     reason: str
     factors: List[str]
 
 
 class WhichRouter:
     """
-    WHICH Router v1.
+    Combined WHICH router.
 
-    Current decision signal:
-        empirical E2B failure risk on WearVQA
+    Two independent decisions:
 
-    Hard constraints:
-        network availability
-        LARGE availability
-        API budget
-        excessive cloud RTT
+    1. Model routing
+       question -> calibrated P(E2B failure)
+       -> SMALL / LARGE
 
-    Future:
-        replace SMALL-failure risk with learned
-        SMALL-vs-LARGE advantage / rescue score.
+    2. Visual context routing
+       question -> temporal need
+       -> 1F / MULTI
+
+    Combined actions:
+       SMALL_1F
+       SMALL_MULTI
+       LARGE_1F
+       LARGE_MULTI
     """
 
     def __init__(
         self,
-        large_threshold: float = 0.40,
+        model_path=None,
         max_cloud_rtt_ms: float = 800.0,
     ):
-        self.large_threshold = large_threshold
+        # SMALL vs LARGE
+        if model_path is None:
+            self.failure_router = E2BFailureRouter()
+        else:
+            self.failure_router = E2BFailureRouter(
+                model_path=model_path
+            )
+
+        self.large_threshold = (
+            self.failure_router.threshold
+        )
+
+        # 1F vs MULTI
+        self.temporal_router = TemporalRouter()
+
         self.max_cloud_rtt_ms = max_cloud_rtt_ms
 
+    # ========================================================
+    # Helper
+    # ========================================================
 
-    def route(self, s: WhichSignals) -> WhichDecision:
+    @staticmethod
+    def _action(
+        use_large: bool,
+        use_multi: bool,
+    ) -> Action:
 
-        # --------------------------------------------------
-        # Explicit debug overrides
-        # --------------------------------------------------
+        if use_large and use_multi:
+            return Action.LARGE_MULTI
+
+        if use_large:
+            return Action.LARGE_1F
+
+        if use_multi:
+            return Action.SMALL_MULTI
+
+        return Action.SMALL_1F
+
+    # ========================================================
+    # Main routing
+    # ========================================================
+
+    def route(
+        self,
+        s: WhichSignals,
+    ) -> WhichDecision:
+
+        # ----------------------------------------------------
+        # First decide whether temporal evidence is needed.
+        # ----------------------------------------------------
+
+        temporal = self.temporal_router.route(
+            s.question
+        )
+
+        use_multi = temporal.multi_frame
+
+        temporal_label = (
+            "temporal"
+            if use_multi
+            else "static"
+        )
+
+        temporal_factor = (
+            "visual_context=MULTI"
+            if use_multi
+            else "visual_context=1F"
+        )
+
+        # ----------------------------------------------------
+        # Explicit overrides
+        # ----------------------------------------------------
 
         if s.force_small:
             return WhichDecision(
-                action=Action.SMALL_1F,
+                action=self._action(
+                    use_large=False,
+                    use_multi=use_multi,
+                ),
                 score=0.0,
-                task_type="override",
+                task_type=temporal_label,
                 reason="Forced SMALL.",
-                factors=["force_small"],
+                factors=[
+                    "force_small",
+                    temporal_factor,
+                ],
             )
 
         if (
             s.force_large
             and s.network_available
             and s.large_available
+            and s.api_budget_ok
         ):
             return WhichDecision(
-                action=Action.LARGE_1F,
+                action=self._action(
+                    use_large=True,
+                    use_multi=use_multi,
+                ),
                 score=1.0,
-                task_type="override",
+                task_type=temporal_label,
                 reason="Forced LARGE.",
-                factors=["force_large"],
+                factors=[
+                    "force_large",
+                    temporal_factor,
+                ],
             )
 
-        # --------------------------------------------------
+        # ----------------------------------------------------
         # Hard feasibility constraints
-        # --------------------------------------------------
+        # ----------------------------------------------------
+
+        cloud_feasible = True
+        cloud_reasons = []
 
         if not s.network_available:
-            return WhichDecision(
-                action=Action.SMALL_1F,
-                score=0.0,
-                task_type="system_constraint",
-                reason="No network: LARGE cloud path unavailable.",
-                factors=["offline"],
-            )
+            cloud_feasible = False
+            cloud_reasons.append("offline")
 
         if not s.large_available:
-            return WhichDecision(
-                action=Action.SMALL_1F,
-                score=0.0,
-                task_type="system_constraint",
-                reason="LARGE backend unavailable.",
-                factors=["large_unavailable"],
+            cloud_feasible = False
+            cloud_reasons.append(
+                "large_unavailable"
             )
 
         if not s.api_budget_ok:
-            return WhichDecision(
-                action=Action.SMALL_1F,
-                score=0.0,
-                task_type="system_constraint",
-                reason="Cloud/API budget unavailable.",
-                factors=["api_budget_unavailable"],
+            cloud_feasible = False
+            cloud_reasons.append(
+                "api_budget_unavailable"
             )
 
         if (
             s.network_rtt_ms is not None
-            and s.network_rtt_ms > self.max_cloud_rtt_ms
+            and s.network_rtt_ms
+            > self.max_cloud_rtt_ms
         ):
-            return WhichDecision(
-                action=Action.SMALL_1F,
-                score=0.0,
-                task_type="system_constraint",
-                reason=(
-                    f"Cloud RTT {s.network_rtt_ms:.0f} ms "
-                    f"exceeds {self.max_cloud_rtt_ms:.0f} ms."
-                ),
-                factors=["network_too_slow"],
+            cloud_feasible = False
+            cloud_reasons.append(
+                "network_too_slow"
             )
 
-        # --------------------------------------------------
-        # Estimate request difficulty for SMALL
-        # --------------------------------------------------
+        # ----------------------------------------------------
+        # Predict calibrated E2B failure probability
+        # ----------------------------------------------------
 
-        task_type, classifier_reason = classify_task(
-            s.question
-        )
-
-        empirical_risk = get_task_risk(
-            task_type
+        score = (
+            self.failure_router
+            .predict_failure_risk(
+                s.question
+            )
         )
 
         factors = [
-            classifier_reason,
-            f"empirical_small_failure_risk={empirical_risk:.2f}",
+            "router=calibrated_text_failure_predictor",
+            f"predicted_e2b_failure_risk={score:.3f}",
+            f"threshold={self.large_threshold:.3f}",
+            temporal_factor,
         ]
 
-        # --------------------------------------------------
-        # Future learned router overrides empirical proxy
-        # --------------------------------------------------
-
-        if s.learned_score is not None:
-            score = max(
-                0.0,
-                min(1.0, s.learned_score),
-            )
+        if temporal.matched_patterns:
             factors.append(
-                f"learned_large_benefit_score={score:.2f}"
+                "temporal_pattern_match"
             )
-        else:
-            score = empirical_risk
 
-        # --------------------------------------------------
-        # Phone resource pressure:
-        # offload if cloud is feasible.
-        # --------------------------------------------------
+        # ----------------------------------------------------
+        # Device pressure
+        # ----------------------------------------------------
 
         if s.phone_busy:
-            score = min(1.0, score + 0.10)
-            factors.append("phone_busy:+0.10")
+            score = min(
+                1.0,
+                score + 0.10,
+            )
+            factors.append(
+                "phone_busy:+0.10"
+            )
 
         if s.memory_pressure_high:
-            score = min(1.0, score + 0.15)
-            factors.append("memory_pressure:+0.15")
+            score = min(
+                1.0,
+                score + 0.15,
+            )
+            factors.append(
+                "memory_pressure:+0.15"
+            )
 
-        # --------------------------------------------------
-        # Final WHICH decision
-        # --------------------------------------------------
+        # ----------------------------------------------------
+        # SMALL vs LARGE
+        # ----------------------------------------------------
 
-        if score >= self.large_threshold:
-            return WhichDecision(
-                action=Action.LARGE_1F,
-                score=score,
-                task_type=task_type,
-                reason=(
-                    f"SMALL-risk score {score:.2f} >= "
-                    f"threshold {self.large_threshold:.2f}."
-                ),
-                factors=factors,
+        wants_large = (
+            score >= self.large_threshold
+        )
+
+        use_large = (
+            wants_large
+            and cloud_feasible
+        )
+
+        # ----------------------------------------------------
+        # Final action
+        # ----------------------------------------------------
+
+        action = self._action(
+            use_large=use_large,
+            use_multi=use_multi,
+        )
+
+        if wants_large and not cloud_feasible:
+            factors.extend(cloud_reasons)
+
+            reason = (
+                f"E2B failure risk {score:.2f} "
+                f">= threshold "
+                f"{self.large_threshold:.2f}, "
+                f"but LARGE is unavailable; "
+                f"falling back to SMALL."
+            )
+
+        elif use_large:
+            reason = (
+                f"E2B failure risk {score:.2f} "
+                f">= threshold "
+                f"{self.large_threshold:.2f}; "
+                f"route LARGE."
+            )
+
+        else:
+            reason = (
+                f"E2B failure risk {score:.2f} "
+                f"< threshold "
+                f"{self.large_threshold:.2f}; "
+                f"route SMALL."
+            )
+
+        if use_multi:
+            reason += (
+                " Temporal evidence detected; "
+                "use multiple frames."
+            )
+        else:
+            reason += (
+                " Single-frame evidence is sufficient."
             )
 
         return WhichDecision(
-            action=Action.SMALL_1F,
+            action=action,
             score=score,
-            task_type=task_type,
-            reason=(
-                f"SMALL-risk score {score:.2f} < "
-                f"threshold {self.large_threshold:.2f}."
-            ),
+            task_type=temporal_label,
+            reason=reason,
             factors=factors,
         )

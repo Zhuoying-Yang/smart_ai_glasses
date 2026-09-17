@@ -4,9 +4,7 @@ from when.types import Route
 
 class WhenWhichAdapter:
     def __init__(self):
-        self.router = WhichRouter(
-            large_threshold=0.40
-        )
+        self.router = WhichRouter()
 
     def route(self, event):
         if event.route is not Route.TRIGGER:
