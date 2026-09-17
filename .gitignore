@@ -26,3 +26,10 @@ benchmark/results/
 
 # macOS
 .DS_Store
+
+# Local experimental router models
+routing/e2b_calibrated_failure_router.joblib
+routing/e2b_failure_router.joblib
+routing/e2b_hybrid_failure_router.joblib
+routing/e2b_multimodal_failure_router.joblib
+routing/vqav2_65class_question_classifier.joblib
