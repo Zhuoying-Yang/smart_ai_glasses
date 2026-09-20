@@ -33,3 +33,33 @@ routing/e2b_failure_router.joblib
 routing/e2b_hybrid_failure_router.joblib
 routing/e2b_multimodal_failure_router.joblib
 routing/vqav2_65class_question_classifier.joblib
+
+# ===== Local benchmark data / generated results =====
+routing/benchmarks/budget_sweep/
+routing/benchmarks/egowearbench/raw/
+routing/benchmarks/final_sol_labels/
+routing/benchmarks/rescue_router/
+routing/benchmarks/router_training/
+routing/benchmarks/superglasses/images/
+routing/benchmarks/superglasses/results/
+
+# Generated benchmark manifests / labels
+routing/benchmarks/egowearbench/egoconv_routing_labels.csv
+routing/benchmarks/egowearbench/egoconv_routing_labels.jsonl
+routing/benchmarks/egowearbench/proactive_state_manifest.csv
+routing/benchmarks/egowearbench/question_manifest.csv
+routing/benchmarks/results/wearvqa_image_judge_50.csv
+routing/benchmarks/results/wearvqa_judge_user_utility_50.csv
+routing/benchmarks/results/wearvqa_router_adaptation_summary.csv
+routing/benchmarks/results/wearvqa_router_split.csv
+routing/benchmarks/superglasses/direct_visual_manifest.csv
+routing/benchmarks/superglasses/full_routing_manifest.csv
+routing/benchmarks/supermemory/question_manifest.csv
+routing/benchmarks/unified_question_corpus.csv
+routing/benchmarks/unified_question_corpus_clean.csv
+
+# Trained local router models
+routing/*.joblib
+
+# Logs
+routing/benchmarks/*.log
