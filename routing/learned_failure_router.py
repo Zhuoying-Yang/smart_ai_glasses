@@ -5,7 +5,7 @@ import joblib
 
 DEFAULT_MODEL_PATH = (
     Path(__file__).resolve().parent
-    / "e2b_calibrated_failure_router_30k.joblib"
+    / "e2b_wearvqa_failure_router.joblib"
 )
 
 
@@ -43,7 +43,15 @@ class E2BFailureRouter:
 
         self.failure_definition = bundle.get(
             "failure_definition",
-            "vqa_score < 0.5",
+            bundle.get(
+                "label_definition",
+                "WearVQA image-aware user-utility failure",
+            ),
+        )
+
+        self.source = bundle.get(
+            "source",
+            "unknown",
         )
 
     def predict_failure_risk(self, question: str) -> float:
