@@ -11,7 +11,7 @@ from routing.high_level_router import (
 from routing.short_term_memory import (
     RollingVisualBuffer,
 )
-from when.types import Route
+from when.types import Route, TriggerType
 
 
 class RoutingPipeline:
@@ -175,6 +175,16 @@ class RoutingPipeline:
                     event.route
                     is not Route.TRIGGER
                 ):
+                    continue
+
+                if event.trigger_type in (
+                    TriggerType.STANDING,
+                    TriggerType.ALERT,
+                ):
+                    self.executor.execute_proactive(
+                        event,
+                        frame_rgb,
+                    )
                     continue
 
                 decision = (

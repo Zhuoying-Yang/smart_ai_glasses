@@ -430,6 +430,45 @@ class FinalExecutor:
 
         return answer
 
+    def execute_proactive(
+        self,
+        event,
+        frame_rgb,
+    ):
+        kind = event.trigger_type.value
+        description = str(
+            event.query.text
+        ).strip()
+
+        if kind == "ALERT":
+            answer = (
+                "Warning. I detected "
+                + description
+                + "."
+            )
+        else:
+            answer = (
+                "Reminder. I detected "
+                + description
+                + "."
+            )
+
+        print()
+        print("-" * 68)
+        print("PROACTIVE EXECUTOR")
+        print("-" * 68)
+        print("Trigger :", kind)
+        print("Detected:", description)
+        print("Score   :", f"{event.score:.3f}")
+        print("Threshold:", f"{event.threshold:.3f}")
+        print("Answer  :", answer)
+        print("-" * 68)
+        print()
+
+        self._speak(answer)
+
+        return answer
+
     def execute(
         self,
         decision,
