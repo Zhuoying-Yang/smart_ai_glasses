@@ -11,6 +11,7 @@ from openai import OpenAI
 
 from routing.temporal_memory import execute_temporal
 from routing.visual_rescue_router import VisualRescueRouter
+from integration.audio_state import begin_tts, end_tts
 
 
 OLD_PROJECT = (
@@ -78,13 +79,21 @@ class FinalExecutor:
         ).strip()
 
         if self.speak and answer:
-            subprocess.run(
-                [
-                    "say",
-                    answer,
-                ],
-                check=False,
-            )
+            begin_tts()
+
+            try:
+                subprocess.run(
+                    [
+                        "say",
+                        answer,
+                    ],
+                    check=False,
+                )
+
+            finally:
+                end_tts(
+                    grace_seconds=1.2
+                )
 
     def _save_frame(
         self,

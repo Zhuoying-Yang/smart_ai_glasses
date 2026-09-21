@@ -41,6 +41,7 @@ try:
     from .run_video import _Slot
     from .types import TriggerType, Urgency
     from integration.pipeline import RoutingPipeline
+    from integration.audio_state import should_ignore_input
 except ModuleNotFoundError as exc:
     _MISSING = exc.name
 else:
@@ -410,7 +411,18 @@ def main(argv=None) -> int:
                     if not why.startswith("太短") and not why.startswith("整段"):
                         print(f"\n\033[2m   （检测到声音但没收：{why}）\033[0m")
                 continue
-            native, english = stt.hear(utt.audio, want_english=not args.no_translate)
+            if should_ignore_input():
+                print(
+                    "\n\033[2m"
+                    "   （系统正在播报，已丢弃 TTS 回声）"
+                    "\033[0m"
+                )
+                continue
+
+            native, english = stt.hear(
+                utt.audio,
+                want_english=not args.no_translate,
+            )
             if is_hallucination(native) and is_hallucination(english):
                 print(f"\n\033[2m   （识别为静音幻觉，已丢弃：{native[:30]}）\033[0m")
                 continue
