@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import csv
 import json
+import os
+import re
 import time
 from pathlib import Path
 
@@ -69,6 +71,25 @@ def log_result(
         writer.writerow(row)
 
 
+ORDERING_PATTERNS = [
+    r"\bfirst\b",
+    r"\bbefore\b",
+    r"\bafter\b",
+    r"\bearlier\b",
+    r"\blater\b",
+    r"\border\b",
+]
+
+
+def is_ordering_question(question):
+    q = str(question).lower()
+
+    return any(
+        re.search(pattern, q)
+        for pattern in ORDERING_PATTERNS
+    )
+
+
 def execute_temporal(
     question,
     visual_buffer,
@@ -77,9 +98,42 @@ def execute_temporal(
 ):
     start = time.perf_counter()
 
-    frames = visual_buffer.uniform_sample(
-        seconds=seconds,
-        k=num_frames,
+    selector = os.getenv(
+        "TEMPORAL_SELECTOR",
+        "uniform",
+    ).lower()
+
+    ordering = is_ordering_question(
+        question
+    )
+
+    if ordering:
+        effective_frames = 6
+        frames = visual_buffer.uniform_sample(
+            seconds=seconds,
+            k=effective_frames,
+        )
+        selector_used = "uniform-ordering"
+
+    elif selector == "motion":
+        effective_frames = num_frames
+        frames = visual_buffer.motion_sample(
+            seconds=seconds,
+            k=effective_frames,
+        )
+        selector_used = "motion"
+
+    else:
+        effective_frames = num_frames
+        frames = visual_buffer.uniform_sample(
+            seconds=seconds,
+            k=effective_frames,
+        )
+        selector_used = "uniform"
+
+    print(
+        "[TEMPORAL] selector:",
+        selector_used,
     )
 
     if len(frames) < 2:
