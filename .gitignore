@@ -71,3 +71,6 @@ routing/benchmarks/results/short_term_routing_log.csv
 
 # macOS
 .DS_Store
+
+!routing/question_type_router_sol.joblib
+!routing/visual_rescue_router_final.joblib
