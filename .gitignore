@@ -63,3 +63,11 @@ routing/*.joblib
 
 # Logs
 routing/benchmarks/*.log
+
+# short-term routing runtime
+aria_live_frame.jpg
+routing/runtime/
+routing/benchmarks/results/short_term_routing_log.csv
+
+# macOS
+.DS_Store
