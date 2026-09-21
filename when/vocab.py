@@ -42,6 +42,37 @@ OBJECTS: List[str] = [
     "a trash bin", "a cleaning cloth", "a sponge",
     "a remote control", "a television screen", "a game controller",
     "a stack of folded clothes", "a towel hanging", "a pair of shoes",
+
+    # 容器与饮品 —— 原来只有「调料瓶」，日常最常出现的水瓶杯子全缺
+    "a water bottle", "a dark insulated water bottle", "a stainless steel thermos flask",
+    "a ceramic mug", "a paper coffee cup", "a drinking glass", "a soda can",
+    "a travel tumbler", "a teapot", "a water dispenser",
+
+    # 随身物品
+    "a set of keys", "a wallet", "a smartwatch", "a pair of earbuds in a case",
+    "an eyeglasses case", "an umbrella", "a face mask", "a lanyard badge",
+    "a power bank", "a USB cable",
+
+    # 食物
+    "a plate of cooked food", "a sandwich", "a piece of fruit", "a banana",
+    "an apple", "a bowl of noodles", "a snack package", "a chocolate bar",
+    "a lunch box",
+
+    # 文具
+    "a ballpoint pen", "a pencil", "an open notebook", "a hardcover book",
+    "a stack of sticky notes", "a paper folder", "a ruler", "a stapler",
+    "a highlighter marker",
+
+    # 清洁与卫生
+    "a tissue box", "a bottle of hand sanitizer", "a bar of soap",
+    "a toothbrush", "a hand towel", "a spray bottle of cleaner",
+
+    # 药品
+    "a bottle of pills", "a box of medicine", "a blister pack of tablets",
+
+    # 厨具补充
+    "a pair of chopsticks", "a metal spoon", "a measuring cup",
+    "a glass jar with a lid", "a kitchen scale",
 ]
 
 PEOPLE: List[str] = [
@@ -53,6 +84,8 @@ PEOPLE: List[str] = [
     "an empty room with no people", "nobody is present in the scene",
     "a person cooking at a stove", "a person washing dishes",
     "a person opening a cabinet", "a person carrying something",
+    "a person drinking from a bottle", "a person writing with a pen",
+    "a person holding a phone", "a person putting something down on a table",
     # 笔记本摄像头正对自己的场景
     "a close-up of a person's face", "a person looking at the camera",
     "the head and shoulders of a person indoors", "a person wearing a shirt",
@@ -65,9 +98,24 @@ QUALITY: List[str] = [
     "an overexposed bright image", "a close-up of fabric texture",
     "a motion blurred frame", "a plain featureless surface",
     "a shaky camera frame", "a partially obstructed view",
+
+    # 第一人称眼镜视角特有的 —— 鱼眼暗角、手在近处、物体贴脸
+    "a fisheye view with dark corners", "a wide angle first person view",
+    "a hand close to the camera", "an object held right in front of the camera",
+    "a first person view of a desk from above", "a view partly blocked by a large object",
 ]
 
 BUILTIN_VOCAB: List[str] = SCENES + OBJECTS + PEOPLE + QUALITY
+
+# 条目 -> 类别。给「每类最多选几条」用。
+# 句子嵌入的两两相似度都挤在 0.7-0.85，方差太小，MMR 那种基于嵌入的多样性
+# 约束推不动排序；按类别限额是更强也更好解释的信号。
+CATEGORY: dict[str, str] = {
+    **{t: "scene" for t in SCENES},
+    **{t: "object" for t in OBJECTS},
+    **{t: "people" for t in PEOPLE},
+    **{t: "quality" for t in QUALITY},
+}
 
 
 def load_vocab(spec: str = "builtin") -> List[str]:
@@ -80,4 +128,7 @@ def load_vocab(spec: str = "builtin") -> List[str]:
     return [x.strip() for x in lines if x.strip() and not x.startswith("#")]
 
 
-__all__ = ["BUILTIN_VOCAB", "load_vocab", "SCENES", "OBJECTS", "PEOPLE", "QUALITY"]
+__all__ = [
+    "BUILTIN_VOCAB", "CATEGORY", "load_vocab",
+    "SCENES", "OBJECTS", "PEOPLE", "QUALITY",
+]

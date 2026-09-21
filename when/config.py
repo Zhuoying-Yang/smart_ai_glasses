@@ -65,6 +65,18 @@ class AutoNegCfg:
     top_k: int = 6
     vocab: str = "builtin"          # 'builtin' 或词表文件路径
     exclude_similar: float = 0.90   # 与任一 query 文本相似度超过此值的词条不选
+
+    # 只按分数取前 K 会让同一语义簇的条目一起挤进来
+    # （实测一次选出的 6 条里 4 条都是「桌面电脑周边」，只覆盖 2 个簇）。
+    #
+    # max_per_category 是主力：词表分场景/物体/人/画质四类，每类限额。
+    # 实测这个比基于嵌入的 MMR 有效得多 —— 句子嵌入的两两相似度都在
+    # 0.69-0.84 之间，方差太小，MMR 推不动排序。
+    max_per_category: int = 2
+    # MMR（嵌入层面的多样性）默认关闭：在眼镜/书桌/厨房三个场景上实测，
+    # 它只在一个场景改变了结果，而且只是换了两条的顺序、集合完全一样。
+    # 句子嵌入的两两相似度都挤在 0.69-0.84，方差太小，推不动排序。留着旋钮但不开。
+    diversity: float = 0.0
     reprobe_on_scene_change: bool = True
     scene_change_novelty: float = 0.35
 
@@ -85,6 +97,11 @@ class AutoNegCfg:
     # 低于这个数说明模型根本没匹配上。实测(2026-09-14 live)：
     #   正确触发 raw∈[0.21, 0.31]，误触发 raw∈[0.06, 0.12]，K=6 时 1/(1+K)=0.143 正好落在空档里
     chance_multiplier: float = 1.2  # min_raw 至少要有 1.2 × 随机水平
+    # 但随机水平是个固定值（K=6 时 0.143），而各场景的分数量纲差一个数量级：
+    # 负样本越贴合环境，query 的概率被压得越低。实测厨房 auto 下所有 query 的
+    # 全程峰值都在 0.017-0.094，固定的 0.171 是谁都够不到的墙，导致一次都不触发。
+    # 所以给 chance 锚点加个天花板：不能超过「探测期统计量 × headroom」。
+    chance_headroom: float = 3.0
     delta_ratio: float = 0.20       # delta_on 至少要有 min_raw 的 20%
 
 
