@@ -82,6 +82,48 @@ class RollingVisualBuffer:
 
         return record
 
+    def add_rgb(self, frame_rgb, timestamp=None):
+        if timestamp is None:
+            timestamp = time.time()
+
+        with self._lock:
+            frame_id = self._next_frame_id
+            self._next_frame_id += 1
+
+        destination = self.storage_dir / (
+            f"frame_{frame_id:08d}_{int(timestamp * 1000)}.jpg"
+        )
+
+        temp = self.storage_dir / (
+            f".tmp_{frame_id:08d}.jpg"
+        )
+
+        image = Image.fromarray(
+            frame_rgb
+        ).convert("RGB")
+
+        image.save(
+            temp,
+            format="JPEG",
+            quality=90,
+        )
+
+        temp.replace(destination)
+
+        record = FrameRecord(
+            frame_id=frame_id,
+            timestamp=timestamp,
+            path=str(destination),
+        )
+
+        with self._lock:
+            self._frames.append(record)
+            self._prune_locked(timestamp)
+
+        self._cleanup_disk(timestamp)
+
+        return record
+
     def _prune_locked(self, now):
         cutoff = now - self.window_seconds
 

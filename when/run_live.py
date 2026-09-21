@@ -528,6 +528,10 @@ def main(argv=None) -> int:
             with latest_frame_lock:
                 latest_frame["rgb"] = rgb.copy()
 
+            routing_pipeline.observe_frame(
+                rgb
+            )
+
             slot.put(
                 rgb,
                 t,
