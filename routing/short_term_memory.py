@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from PIL import Image, ImageOps
-import numpy as np
 
 
 @dataclass(frozen=True)
@@ -174,101 +173,6 @@ class RollingVisualBuffer:
         ]
 
         return [frames[i] for i in indices]
-
-    def motion_sample(
-        self,
-        seconds,
-        k,
-        min_gap_seconds=1.5,
-    ):
-        frames = self.get_last(seconds)
-
-        if not frames or k <= 0:
-            return []
-
-        if len(frames) <= k:
-            return frames
-
-        if k == 1:
-            return [frames[-1]]
-
-        images = []
-
-        for frame in frames:
-            with Image.open(frame.path) as img:
-                img = ImageOps.grayscale(img)
-                img = img.resize((160, 90))
-                images.append(
-                    np.asarray(
-                        img,
-                        dtype=np.float32,
-                    )
-                )
-
-        motion_scores = [0.0]
-
-        for i in range(1, len(images)):
-            score = float(
-                np.mean(
-                    np.abs(
-                        images[i]
-                        - images[i - 1]
-                    )
-                )
-            )
-            motion_scores.append(score)
-
-        selected = {
-            0,
-            len(frames) - 1,
-        }
-
-        candidates = sorted(
-            range(1, len(frames) - 1),
-            key=lambda i: motion_scores[i],
-            reverse=True,
-        )
-
-        for idx in candidates:
-            if len(selected) >= k:
-                break
-
-            timestamp = frames[idx].timestamp
-
-            far_enough = all(
-                abs(
-                    timestamp
-                    - frames[j].timestamp
-                )
-                >= min_gap_seconds
-                for j in selected
-            )
-
-            if far_enough:
-                selected.add(idx)
-
-        if len(selected) < k:
-            uniform_indices = [
-                round(
-                    i
-                    * (len(frames) - 1)
-                    / (k - 1)
-                )
-                for i in range(k)
-            ]
-
-            for idx in uniform_indices:
-                selected.add(idx)
-
-                if len(selected) >= k:
-                    break
-
-        indices = sorted(selected)
-
-        return [
-            frames[i]
-            for i in indices[:k]
-        ]
 
     def all_frames(self):
         return self.get_last(self.window_seconds)

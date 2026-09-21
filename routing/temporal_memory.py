@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import json
-import os
 import re
 import time
 from pathlib import Path
@@ -98,38 +97,24 @@ def execute_temporal(
 ):
     start = time.perf_counter()
 
-    selector = os.getenv(
-        "TEMPORAL_SELECTOR",
-        "uniform",
-    ).lower()
-
     ordering = is_ordering_question(
         question
     )
 
-    if ordering:
-        effective_frames = 6
-        frames = visual_buffer.uniform_sample(
-            seconds=seconds,
-            k=effective_frames,
-        )
-        selector_used = "uniform-ordering"
+    effective_frames = (
+        6 if ordering else num_frames
+    )
 
-    elif selector == "motion":
-        effective_frames = num_frames
-        frames = visual_buffer.motion_sample(
-            seconds=seconds,
-            k=effective_frames,
-        )
-        selector_used = "motion"
+    frames = visual_buffer.uniform_sample(
+        seconds=seconds,
+        k=effective_frames,
+    )
 
-    else:
-        effective_frames = num_frames
-        frames = visual_buffer.uniform_sample(
-            seconds=seconds,
-            k=effective_frames,
-        )
-        selector_used = "uniform"
+    selector_used = (
+        "uniform-ordering"
+        if ordering
+        else "uniform"
+    )
 
     print(
         "[TEMPORAL] selector:",
