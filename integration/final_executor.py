@@ -122,13 +122,7 @@ class FinalExecutor:
         self,
         question,
     ):
-        if str(OLD_PROJECT) not in sys.path:
-            sys.path.insert(
-                0,
-                str(OLD_PROJECT),
-            )
-
-        from phone_bridge import ask_phone
+        from routing.phone_bridge import ask_phone
 
         prompt = (
             f"{question}\n"
