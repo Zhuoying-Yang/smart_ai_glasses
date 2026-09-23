@@ -2,8 +2,8 @@ import queue
 import threading
 import time
 
-from integration.final_executor import (
-    FinalExecutor,
+from integration.enhanced_executor import (
+    EnhancedFinalExecutor,
 )
 from routing.high_level_router import (
     HighLevelRouter,
@@ -32,7 +32,7 @@ class RoutingPipeline:
         )
 
         self.executor = (
-            FinalExecutor(
+            EnhancedFinalExecutor(
                 visual_buffer=
                     self.visual_buffer,
                 speak=True,
